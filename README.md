@@ -20,9 +20,9 @@ Please Note:
 Select your device, chose script/exe to execute, press activate. 
 
 # Can you use it without GUI?
-You can configure this tool with the "%cfgName%" completly without GUI, so you
-can run background. (state_active, state_hidden and state_hidden_taskbar to 1)
+You can configure this tool with the config completely without GUI, so you
+can run it in the background. (state_active, state_hidden and state_hidden_taskbar to 1)
 
 # Can you send the drive letters to the script/exe?
-Yes, please tick the "Send parameter" checkbox. they will be attached at the end of the edit
+Yes, please tick the "Send parameter" checkbox. They will be attached at the end of the edit
 line (not visible). E. g. "G:,H:" see "example1.ahk" how to use.
