@@ -1,4 +1,4 @@
-![](@Resources/screenshots/2018-03-11 14_35_37-USB EXECutor.png)
+﻿![](screenshots/2018-03-1-14_35_37-USB_EXECutor.png)
 
 # What can this Tool do?
 This tool detects an device change (e.g USB stick got attached, USB stick got pulled out)
