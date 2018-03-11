@@ -9,10 +9,10 @@
 |                               Enhancements/ToDo                              |
 + ---------------------------------------------------------------------------- +
 
-- ADD: don't execute script/exe again on device change, if device is already attached
-- ADD: a kind of file check, to identify the device more securely
-- ADD: entry in DDL, that the usb_ident var is currently not attached if read from cfg file.
-- ADD: a nice icon
 - IMPROVE: Better way in notify_change, for Sleep command
 - IMPROVE: Beautify DDL Strings. (To friendly name or something)
+- ADD: a kind of file check, to identify the device more securely
+- ADD: entry in DDL, that the usb_ident var is currently not attached if read from cfg file.
+- ADD: a nice icon .)
+
 
