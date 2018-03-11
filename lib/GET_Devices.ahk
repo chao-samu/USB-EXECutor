@@ -230,10 +230,15 @@ notify_change()
     }
      */
 
-    ; check if drive letter is found, if so execute function
-    If USB_drive_letter.GetCapacity()
+    ; check if found and not already attached
+    If(USB_drive_letter.GetCapacity() && !state_attached) {
+        state_attached := 1
         Execute(USB_drive_letter, count)
-    
+    }
+    else if(!USB_drive_letter.GetCapacity()){
+        state_attached := 0
+    }
+
     ;discard any new call in time
     Sleep, 2500 ;need a better solution
 }

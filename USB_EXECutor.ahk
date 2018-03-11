@@ -18,6 +18,7 @@ SetWorkingDir %A_ScriptDir%
 global PrgName := "USB EXECutor"
 global PrgVersion := "0.9.0-beta"
 global cfgName := "USB_EXECutor.cfg"
+global state_attached := 0
 
 state_active := 0 ; ButtonSet (Activate/Inactive)
 state_hidden := 0 ; ButtonHide
@@ -209,17 +210,18 @@ Gui +Disabled
 Gui, Help:Add, Text,,
 (
 What can this Tool do?
-This tool detects an device change (e.g USB stick got attached, USB stick got pulled out)
+This tool detects a device change (e.g USB stick got attached, USB stick got pulled out)
 
-If a device change has occured then it will check if your selected device got attached
-to the system. If so it will execute your script/exe (Or the inbuild HelloWorld script if you
+If a device change has occured, then it will check if your selected device got attached
+to the system. If so, it will execute your script/exe (Or the inbuild HelloWorld script if you
 haven't selected anything).
+
+It won't execute your script again until you restart your script or disconnect your device
+from the system and reattach.
 
 Please Note:
 
-1.  It will only detect device changes, so if a device change occur and your device
-    is still attached it will execute the script/exe again. Im' looking for a solution, if you have
-    an idea please share with me.
+1.  The current implementation requires between each reattach at least 5 sec.
 
 2.  USB Sticks have no unquie identifier, so two USB sticks from the same production line,
     has the same "devicePath"(identifier). If two of the same USB sticks got attached
@@ -230,13 +232,12 @@ How to use?
 Select your device, chose script/exe to execute, press activate.
 
 Can you use it without GUI?
-You can configure this tool with the "%cfgName%" completly without GUI, so you
-can run it in the background.
-(state_active, state_hidden and state_hidden_taskbar to 1)
+You can configure this tool with the config completely without GUI, so you
+can run it in the background. (state_active, state_hidden and state_hidden_taskbar to 1)
 
 Can you send the drive letters to the script/exe?
-Yes, please tick the "Send parameter" checkbox. they will be attached at the end of the edit
-line (not visible). E. g. "G:,H:" see "example1.ahk" how to use.
+Yes, please tick the "Send parameter" checkbox. They will be attached at the end of the
+edit line (not visible). E. g. "G:,H:" see "example1.ahk" how to use.
 )
 
 Gui, Help:Add, Button, Default, OK
@@ -284,8 +285,7 @@ Gui, About:Add, Link,,
 Tool compiled with: AHK %A_AhkVersion% %BitVersion%
 
 Special thanks:
-qwerty12 from the authotkey.com forum who has helped
-me a lot with the DLL calls.
+qwerty12 (for the help with the Dll calls)
 
 And of course all AHK developer and contributers!
 
