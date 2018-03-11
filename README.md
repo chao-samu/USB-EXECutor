@@ -7,7 +7,7 @@ If a device change has occured, then it will check if your selected device got a
 to the system. If so, it will execute your script/exe (Or the inbuild HelloWorld script if you
 haven't selected anything).
 
-It won't execute your script again until you restart your script or disconnect your device
+It won't execute your script again until you restart this tool or disconnect your device
 from the system and reattach.
 
 Please Note: 
