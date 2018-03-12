@@ -25,10 +25,10 @@ for k, v in A_Args {
 ; main #########################################################################
 ; Example (Hello World)
 for v, k in USB_drive_letter {
-    count++
     partitions .= k . ","
 }
-MsgBox % "We identified an device change, your device is attached at the moment.`nYour device has " count " partition/s: " partitions
+partitions := RTrim(partitions, ",")
+MsgBox % "We identified a device change, your device is attached at the moment.`nYour device partition/s: " . partitions
 
 ; Example (KeePass)
 ; first_partition := USB_drive_letter[1]
