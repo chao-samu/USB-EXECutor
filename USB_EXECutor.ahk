@@ -4,6 +4,7 @@ Execute "your Code" if a specified device is plugged in, if a device change
 is detected (receiving Windows message "WM_DEVICECHANGE").
 */
 
+
 ; INCLUDES AND FLAGS ===========================================================
 #Include %A_ScriptDir%
 #Include lib\GET_Devices.ahk
@@ -13,6 +14,7 @@ is detected (receiving Windows message "WM_DEVICECHANGE").
 ; #NoTrayIcon    ; Its defined trough "state_hidden_taskbar"
 SendMode Input
 SetWorkingDir %A_ScriptDir%
+
 
 ; DEFINE =======================================================================
 global PrgName := "USB EXECutor"
@@ -26,11 +28,11 @@ state_hidden_taskbar := 0 ; Hide from taskbar
 state_exec := 0 ; CheckboxExec
 state_exec_cmd := 0 ; Checkbox send parameter
 
-; OS DETECTIONS ================================================================
-If (A_PtrSize == 4)
-    BitVersion := "x86"
-else
-    BitVersion := "x64"
+
+; GET ==========================================================================
+i_disk_seApi := GetDevices_from_SetupAPI()
+BitVersion := OSDetection()
+
 
 ; PARSE CFG FILE ===============================================================
 If (FileExist(cfgName)) {
@@ -67,10 +69,12 @@ else {
     SaveConfig(USB_ident, exec_path, state_active, state_hidden, state_hidden_taskbar, state_exec, state_exec_cmd)
 }
 
+
 ; GUI GET ======================================================================
 ; DDL items
-device_list := GetDDLtems()
-GuiControl,, DropDownList , |%device_list%
+DDL_device_list := GetDDLtems(i_disk_seApi)
+GuiControl,, DropDownList , |%DDL_device_list%
+
 
 ; GUI MAIN =====================================================================
 Menu, Tray, Add, Show Gui, TrayShowGUI
@@ -81,20 +85,21 @@ Menu, helpmenu, Add, License, MenuLicense
 Menu, helpmenu, Add, About, MenuAbout
 Menu, topmenu, Add, &Help, :helpmenu
 Gui, Menu, topmenu
-Gui, Add, DropDownList, x32 y40 w240 h200 vDropDownList, %device_list%
+Gui, Add, DropDownList, x32 y40 w240 h200 vDropDownList, %DDL_device_list%
 Gui, Add, Button, x302 y40 w90 h20 vButtonReload gButtonReload, Reload
 Gui, Add, Button, x302 y70 w90 h20 vButtonSet gButtonSet, Activate
 Gui, Add, Button, x302 y90 w90 h20 vButtonHide gButtonHide, Hide GUI
 Gui, Add, Text, x32 y70 w250 h40 , NOTE: USB Devices can't be unquely identified. That means that two USB Sticks could possibly not distinguished. Read Help for further information.
 Gui, Add, Checkbox, x19 y130 vstate_exec gstate_exec, Use own script/exe
 Gui, Add, Checkbox, x145 y130 vstate_exec_cmd gstate_exec_cmd, Send parameters
-Gui, Add, GroupBox, x12 y10 w390 h110 , Select USB Device
+Gui, Add, GroupBox, x12 y10 w390 h110 , Select device
 Gui, Add, GroupBox, x12 y150 w390 h50 , Select file to Run
 Gui, Add, Edit, x22 y170 w250 h20 vEdit
 Gui, Add, Button, x302 y170 w90 h20 vButtonSelect gButtonSelect, Select
 ; Generated using SmartGUI Creator for SciTE
 
 ; GUI Show command is initiated during "GUI SET CFG SETTINGS"
+
 
 ; GUI SET CFG SETTINGS =========================================================
 ; set GUI Show (state_hidden)
@@ -107,21 +112,18 @@ else
 If(state_hidden_taskbar)
     Menu, Tray, NoIcon
 
-; set old DDL item (USB_ident)
-Loop, parse, device_list, |,
-{
-    If(!A_LoopField)
-        continue
-    If (A_LoopField == USB_ident) {
-        current_attached_device := True
-        GuiControl, ChooseString, DropDownList, %A_LoopField%
-    }
+; set old DDL item
+FriendlyName := GetFriendlyName(i_disk_seApi, USB_ident)
+
+If(FriendlyName) {
+    current_attached_device := True
+    GuiControl, ChooseString, DropDownList, %FriendlyName%
 }
 
 If (!current_attached_device) {
-    device_list .= USB_ident . "|"
-    GuiControl,, DropDownList , |%device_list%
-    GuiControl, ChooseString, DropDownList, %USB_ident%
+    DDL_device_list .= FriendlyName . "|"
+    GuiControl,, DropDownList , |%DDL_device_list%
+    GuiControl, ChooseString, DropDownList, %FriendlyName%
 }
 
 ; set Edit (exec_path)
@@ -158,8 +160,8 @@ If(state_active)
     GuiControl, Disable, Edit
     GuiControl, Disable, state_exec
     GuiControl, Disable, state_exec_cmd
-    GuiControlGet, USB_ident,, DropDownList
-    global USB_ident := USB_ident
+    GuiControlGet, selected_item,, DropDownList
+    global USB_ident := GetUSB_ident(i_disk_seApi, selected_item)
     OnMessage(0x219, "notify_change")
     GuiControl,, ButtonSet, Deactivate
     GuiControl, Enable, ButtonSet
@@ -180,12 +182,14 @@ else
 }
 return
 
+
 ; GUI TRAY =====================================================================
 TrayShowGUI:
 state_hidden := 0
 SaveConfig(USB_ident, exec_path, state_active, state_hidden, state_hidden_taskbar, state_exec, state_exec_cmd)
 Gui, Show
 return
+
 
 ; GUI MENUBAR ==================================================================
 HelpButtonOK:
@@ -297,6 +301,7 @@ Gui, About:Add, Button, Default, OK
 Gui, About:Show, w300 h225, About
 return
 
+
 ; GUI CONTROL ==================================================================
 ButtonHide:
 state_hidden := 1
@@ -306,11 +311,11 @@ return
 
 ButtonReload:
 ;clear previous generated DDL list
-device_list  := ""
+DDL_device_list  := ""
 
 ; Get + Set DDL items
-device_list := GetDDLtems()
-GuiControl,, DropDownList , |%device_list%
+DDL_device_list := GetDDLtems(i_disk_seApi)
+GuiControl,, DropDownList , |%DDL_device_list%
 return
 
 ButtonSelect:
@@ -366,8 +371,8 @@ else
     GuiControl, Disable, Edit
     GuiControl, Disable, state_exec
     GuiControl, Disable, state_exec_cmd
-    GuiControlGet, USB_ident,, DropDownList
-    global USB_ident := USB_ident
+    GuiControlGet, selected_item,, DropDownList
+    global USB_ident := GetUSB_ident(i_disk_seApi, selected_item)
     OnMessage(0x219, "notify_change")
     GuiControl,, ButtonSet, Deactivate
     GuiControl, Enable, ButtonSet
@@ -378,7 +383,16 @@ If(!state_active)
     Run, %A_ScriptDir%\%A_ScriptName%
 return
 
+
 ; FUNCTIONS ====================================================================
+OSDetection() {
+    If (A_PtrSize == 4)
+        BitVersion := "x86"
+    else
+        BitVersion := "x64"
+    return BitVersion
+}
+
 SaveConfig(USB_ident, exec_path, state_active, state_hidden, state_hidden_taskbar, state_exec, state_exec_cmd) {
     ; delete previous cfg file (truncate not support natively by ahk)
     FileDelete, %cfgName%
@@ -410,19 +424,40 @@ SaveConfig(USB_ident, exec_path, state_active, state_hidden, state_hidden_taskba
     }
 }
 
-GetDDLtems() {
-    i_disk_seApi := GetDevices_from_SetupAPI()
+GetDDLtems(i_disk_seApi) {
     for k, v in i_disk_seApi {
-        ; device_list .= i_disk_seApi[k, "device_number"]" - "i_disk_seApi[k, "devicePath"] . "|"
-        device_list .= i_disk_seApi[k, "devicePath"] . "|"
+        DDL_device_list .= i_disk_seApi[k, "FriendlyName"] . "|"
     }
-    return device_list
+    return DDL_device_list
+}
+
+GetFriendlyName(i_disk_seApi, USB_ident) {
+    for k, v in i_disk_seApi {
+        if(v.devicePath == USB_ident) {
+            FriendlyName := v.FriendlyName
+        }
+    }
+    return FriendlyName
+}
+
+GetUSB_ident(i_disk_seApi, FriendlyName) {
+    for k, v in i_disk_seApi {
+        if(v.FriendlyName == FriendlyName) {
+            USB_ident := v.devicePath
+        }
+    }
+    return USB_ident
 }
 
 ; Execute function (called by notify_change)
 Execute(USB_drive_letter, count) {
+
+    ; get (needs better solution)
     GuiControlGet, exec_path,, Edit
     GuiControlGet, state_exec_cmd,, Edit
+    FriendlyName := GetFriendlyName(GetDevices_from_SetupAPI(), USB_ident)
+
+    ; Run
     If(exec_path) {
         If(state_exec_cmd) {
             GuiControlGet, exec_path,, Edit
@@ -441,6 +476,7 @@ Execute(USB_drive_letter, count) {
         for v, k in USB_drive_letter {
             partitions .= k . ","
         }
-        MsgBox % "We identified an USB change, your device is attached at the moment:`n`n" USB_ident "`n`nYour device has " count " partition/s:`n" partitions
+        partitions := RTrim(partitions, ",")
+        MsgBox % "We identified a device change, your device is attached at the moment:`n`nName: " . FriendlyName . "`n`nIdentifier (DevicePath): " . USB_ident . "`n`nPartition: " . partitions
     }
 }
