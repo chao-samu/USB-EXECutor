@@ -35,23 +35,33 @@ global TRUNCATE_EXISTING       :=      5
 ;Ntddstor.h
 global IOCTL_STORAGE_GET_DEVICE_NUMBER := 0x2D1080
 
+
 ; FUNCTIONS ====================================================================
 GetDevices_from_SetupAPI()
 {
 
+
     ; DEFINE ===================================================================
+    ; DEVICEINFOLIST -----------------------------------------------------------
     ; variable holding "device setup class" or "device interface class" GUID
+    ; The GUID_DEVINTERFACE_DISK device interface class is defined for hard disk storage devices.
     VarSetCapacity(GUID_DEVINTERFACE_DISK, 16)
-    ,DllCall("ole32\CLSIDFromString", "WStr", "{53F56307-B6BF-11D0-94F2-00A0C91EFB8B}", "Ptr", &GUID_DEVINTERFACE_DISK) ; fill in fmtid member of DEVPROPKEY struct
+    ,DllCall("ole32\CLSIDFromString", "Str", "{53F56307-B6BF-11D0-94F2-00A0C91EFB8B}", "Ptr", &GUID_DEVINTERFACE_DISK) ; fill in fmtid member of DEVPROPKEY struct
 
-    ; multidimensional array holding result (DevicePath + Device Number)
-    i_disk_seApi := Object() ; index disk trough setupapi
 
+    ; DEVICEINFO ---------------------------------------------------------------
     ; structure SP_DEVINFO_DATA (SP_DEVINFO_DATA structure)
     StructSize := 4 + 16 + 4 + A_PtrSize
     ,VarSetCapacity(SP_DEVINFO_DATA, StructSize, 0)
     ,NumPut(StructSize, SP_DEVINFO_DATA, 0, "UInt") ; fill in cbSize
 
+    ; structure DEVPKEY_Device_FriendlyName (DEVPROPKEY structure)
+    VarSetCapacity(DEVPKEY_Device_FriendlyName, 20) ; you might consider looking at DEVPKEY_Device_BusReportedDeviceDesc too/instead
+    ,DllCall("ole32\CLSIDFromString", "Str", "{A45C254E-DF1C-4EFD-8020-67D146A850E0}", "Ptr", &DEVPKEY_Device_FriendlyName)
+    ,NumPut(14, DEVPKEY_Device_FriendlyName, 16, "UInt")
+
+
+    ; DEVICEINTERFACE ----------------------------------------------------------
     ; structure SP_DEVICE_INTERFACE_DATA (SP_DEVICE_INTERFACE_DATA structure)
     StructSize := 4 + 16 + 4 + A_PtrSize
     ,VarSetCapacity(SP_DEVICE_INTERFACE_DATA, StructSize, 0)
@@ -60,12 +70,19 @@ GetDevices_from_SetupAPI()
     ; structure SP_DEVICE_INTERFACE_DETAIL_DATA (SP_DEVICE_INTERFACE_DETAIL_DATA structure)
     ; defined and allocated on call SetupDiGetDeviceInterfaceDetail
 
+
+    ; DEVICEHANDEL -------------------------------------------------------------
     ; structure STORAGE_DEVICE_NUMBER (STORAGE_DEVICE_NUMBER structure)
     StructSize := 4 + 4 + 4
     ,VarSetCapacity(STORAGE_DEVICE_NUMBER, StructSize, 0)
 
-    ; MAIN =====================================================================
 
+    ; SAVE RESULT ----------------------------------------------------------
+    ; multidimensional array holding result (DevicePath + Device Number)
+    i_disk_seApi := Object() ; index disk trough setupapi
+
+
+    ; MAIN =====================================================================
     ; Ensure setupapi.dll remains loaded between each DllCall
     hModule := DllCall("LoadLibrary", "Str", "setupapi.dll", "Ptr")
     if (!hModule) {
@@ -79,22 +96,31 @@ GetDevices_from_SetupAPI()
         MsgBox SetupDiGetClassDevs call failed.`nReturn value: %r%`nErrorLevel: %ErrorLevel%`nLine: %A_LineNumber%`nLast Error: %A_LastError%
     }
 
-    ; enumerate devices from set
+    ; enumerate devices from DeviceInfoList
     Loop
     {
+        ; GET DEVICE INTERFACE INFO --------------------------------------------
         ; clear previous variables, in case a call fails
         devicePath := device_number := ""
 
-        ; create structure SP_DEVINFO_DATA and SP_DEVICE_INTERFACE_DATA from DeviceInfoList
+        ; get SP_DEVICE_INTERFACE_DATA
         If (!DllCall("setupapi\SetupDiEnumDeviceInterfaces", "Ptr", handle, "Ptr", 0, "Ptr", &GUID_DEVINTERFACE_DISK, "UInt", A_Index - 1, "Ptr", &SP_DEVICE_INTERFACE_DATA )) {
             If (A_LastError != 259) ;ERROR_NO_MORE_ITEMS
                 MsgBox SetupDiEnumDeviceInterfaces call failed.`nReturn value: %r%`nErrorLevel: %ErrorLevel%`nLine: %A_LineNumber%`nLast Error: %A_LastError%`nA_Index: %A_Index%
             break
         }
 
+        ; get devicePath
         if (!DllCall("setupapi\SetupDiGetDeviceInterfaceDetail", "Ptr", handle, "Ptr", &SP_DEVICE_INTERFACE_DATA, "Ptr", 0, "UInt", 0, "UInt*", RequiredSize, "Ptr", 0) && A_LastError == 122) { ; ERROR_INSUFFICIENT_BUFFER
             VarSetCapacity(SP_DEVICE_INTERFACE_DETAIL_DATA, RequiredSize)
-            NumPut(A_PtrSize==8 ? 8 : 6, SP_DEVICE_INTERFACE_DETAIL_DATA, 0, "UInt") ; very bad solution, needs a better detection; fill in cbSize ; See: https://stackoverflow.com/questions/10728644/properly-declare-sp-device-interface-detail-data-for-pinvoke
+            ; fill in cbSize ;very bad solution, needs a better detection ; See: https://stackoverflow.com/questions/10728644/properly-declare-sp-device-interface-detail-data-for-pinvoke
+            If (A_PtrSize == 8)
+                NumPut(8, SP_DEVICE_INTERFACE_DETAIL_DATA, 0, "UInt")
+            else if (A_PtrSize == 4 && A_IsUnicode)
+                NumPut(6, SP_DEVICE_INTERFACE_DETAIL_DATA, 0, "UInt")
+            else
+                NumPut(5, SP_DEVICE_INTERFACE_DETAIL_DATA, 0, "UInt")
+
             if (!DllCall("setupapi\SetupDiGetDeviceInterfaceDetail", "Ptr", handle, "Ptr", &SP_DEVICE_INTERFACE_DATA, "Ptr", &SP_DEVICE_INTERFACE_DETAIL_DATA, "UInt", RequiredSize, "Ptr", &RequiredSize, "Ptr", 0))
                 MsgBox SetupDiGetDeviceInterfaceDetail (SP_DEVICE_INTERFACE_DETAIL_DATA) call failed.`nReturn value: %r%`nErrorLevel: %ErrorLevel%`nLine: %A_LineNumber%`nLast Error: %A_LastError%`nA_Index: %A_Index%
         }
@@ -103,6 +129,26 @@ GetDevices_from_SetupAPI()
 
         devicePath := StrGet(&SP_DEVICE_INTERFACE_DETAIL_DATA+4, "UTF-16")
 
+
+        ; GET DEVICE INFO ------------------------------------------------------
+        ; clear previous variables, in case a call fails
+        FriendlyName := ""
+
+        ; get SP_DEVINFO_DATA
+        If (!DllCall("setupapi.dll\SetupDiEnumDeviceInfo", "Ptr", handle, "UInt", A_Index - 1, "Ptr", &SP_DEVINFO_DATA)) {
+            If (A_LastError != 259) ;ERROR_NO_MORE_ITEMS
+                MsgBox SetupDiEnumDeviceInfo call failed.`nReturn value: %r%`nErrorLevel: %ErrorLevel%`nLine: %A_LineNumber%`nLast Error: %A_LastError%`nA_Index: %A_Index%
+            break
+        }
+
+        ; get property
+        if (!DllCall("setupapi\SetupDiGetDeviceProperty", "Ptr", handle, "Ptr", &SP_DEVINFO_DATA, "Ptr", &DEVPKEY_Device_FriendlyName, "UInt*", PropType, "Ptr", 0, "UInt", 0, "UInt*", RequiredSize, "UInt", 0) && A_LastError == 122) { ; ERROR_INSUFFICIENT_BUFFER
+            VarSetCapacity(FriendlyName, RequiredSize)
+            if (!DllCall("setupapi\SetupDiGetDeviceProperty", "Ptr", handle, "Ptr", &SP_DEVINFO_DATA, "Ptr", &DEVPKEY_Device_FriendlyName, "UInt*", PropType, "Str", FriendlyName, "UInt", RequiredSize, "Ptr", 0, "UInt", 0))
+                MsgBox SetupDiGetDevicePropertyW (DEVPKEY_Device_FriendlyName) call failed.`nReturn value: %r%`nErrorLevel: %ErrorLevel%`nLine: %A_LineNumber%`nLast Error: %A_LastError%`nA_Index: %A_Index%
+        }
+
+        ; GET DEVICE HANDLER ---------------------------------------------------
         ; kernel32.dll is automatically loaded with AHK
         device_handle := DllCall("CreateFile", "Str", devicePath, "UInt", 0, "UInt", FILE_SHARE_WRITE, "Ptr", NULL, "UInt", OPEN_EXISTING, "UInt", 0, "Ptr", NULL)
         if (device_handle = -1)
@@ -114,18 +160,20 @@ GetDevices_from_SetupAPI()
         else
             MsgBox DeviceIoControl call failed.`nReturn value: %r%`nErrorLevel: %ErrorLevel%`nLine: %A_LineNumber%`nLast Error: %A_LastError%`nA_Index: %A_Index%
 
-        ; save result
+
+        ; Save -----------------------------------------------------------------
         if (devicePath && (device_number || device_number == 0)) {
-            i_disk_seApi[A_Index] := {devicePath: devicePath, device_number: device_number}
+            i_disk_seApi[A_Index] := {devicePath: devicePath, device_number: device_number, FriendlyName: FriendlyName}
         }
         else
             continue
+
     }
 
     ; destroy handle (DeviceInfoList)
     DllCall("setupapi\SetupDiDestroyDeviceInfoList", "Ptr", handle)  ; you don't need error checking here: if it frees, it frees. No point in otherwise fretting. You already checked to see if handle != NULL and you got the DllCall right for this function
 
-    ; Unload setupapi.dll, Cfgmgr32.dll
+    ; Unload setupapi.dll
     DllCall("FreeLibrary", "Ptr", hModule)
 
     return i_disk_seApi
@@ -147,6 +195,7 @@ GetDevices_from_driveLetters()
     ; structure STORAGE_DEVICE_NUMBER (STORAGE_DEVICE_NUMBER structure)
     StructSize := 4 + 4 + 4
     ,VarSetCapacity(STORAGE_DEVICE_NUMBER, StructSize, 0)
+
 
     ; MAIN =====================================================================
     ; enumerate devices from drive letter
@@ -188,9 +237,12 @@ GetDevices_from_driveLetters()
 
 notify_change()
 {
+
+
     ; DEFINE ===================================================================
     USB_device_number := ""
     USB_drive_letter := Object()
+
 
     ; MAIN =====================================================================
     ;wait for full attachment
