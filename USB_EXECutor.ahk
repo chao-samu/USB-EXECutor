@@ -160,8 +160,7 @@ If(state_active)
     GuiControl, Disable, Edit
     GuiControl, Disable, state_exec
     GuiControl, Disable, state_exec_cmd
-    GuiControlGet, selected_item,, DropDownList
-    global USB_ident := GetUSB_ident(i_disk_seApi, selected_item)
+    global USB_ident := USB_ident
     OnMessage(0x219, "notify_change")
     GuiControl,, ButtonSet, Deactivate
     GuiControl, Enable, ButtonSet
@@ -454,9 +453,9 @@ Execute(USB_drive_letter, count) {
 
     ; get (needs better solution)
     GuiControlGet, exec_path,, Edit
-    GuiControlGet, state_exec_cmd,, Edit
+    GuiControlGet, state_exec_cmd,, state_exec_cmd
     FriendlyName := GetFriendlyName(GetDevices_from_SetupAPI(), USB_ident)
-
+    
     ; Run
     If(exec_path) {
         If(state_exec_cmd) {
